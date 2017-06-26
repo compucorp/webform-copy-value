@@ -1,18 +1,21 @@
 jQuery(document).ready(function ($) {
-  //console.log();
-  var sourceTargetMap = Drupal.settings.sourceTargetMap;
-  var cid = "";
-  var source = "";
-  var target = "";
 
-  console.log(sourceTargetMap);
-  $.each(sourceTargetMap, function (key, value) {
-    source = key;
-    
-    $('[id*="'+source+'"]').focusout(function(){
-      $.each(value, function(id, target){
-        $('[id*="'+target+'"]').val($('[id*="'+source+'"]').val());
-      });
-    })
+  var sourceTargetMap = Drupal.settings.sourceTargetMap;
+
+  $("input[type=text]").focusout(function() {
+    copyValueToTarget(this, sourceTargetMap);
   });
+  
+  $("select").change(function() {
+    copyValueToTarget(this, sourceTargetMap);
+  });
+  
+  function copyValueToTarget (fieldObj, sourceTargetMap) {
+    var fieldID = fieldObj.id;
+    var stArray = sourceTargetMap[fieldID];
+
+    $.each(stArray, function (key, value) {
+      $('#' + value).val($(fieldObj).val());
+    });
+  }
 });
