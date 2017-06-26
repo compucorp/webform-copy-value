@@ -1,0 +1,4 @@
+name = Webform Default Value
+description = Modifies webform component edit form to make default value of one field equal to another
+core = 7.x
+package = Compucorp
