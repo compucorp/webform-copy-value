@@ -15,7 +15,7 @@ jQuery(document).ready(function ($) {
     var stArray = sourceTargetMap[fieldID];
 
     $.each(stArray, function (key, value) {
-      $('#' + value).val($(fieldObj).val());
+      $('[name="' + value + '"]').val($(fieldObj).val());
     });
   }
 });

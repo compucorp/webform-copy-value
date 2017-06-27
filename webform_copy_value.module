@@ -4,13 +4,15 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
   if($form_id == "webform_component_edit_form") {
     $type = $form['type']['#value'];
     $components = $form['#node']->webform['components'];
-    if(in_array($type, array('textfield','select'))){
+    if(in_array($type, array('textfield','select', 'hidden'))){
       $node = $form['#node'];
       $nid = $node->nid;
+      if($type == 'hidden') {
+        $type = "textfield";
+      }
       $fieldList = get_webform_fields_by_type($components, $type);
       if(strpos($form['value']['#default_value'], 'webform_copy_value:') !== FALSE) {
-        $sourceField = preg_match('/\[webform_copy_value\:(.*?)\]/', $form['value']['#default_value'], $match);
-        $sourceFormKey = $match[1];
+        $sourceFormKey = get_source_form_key($form['value']);
         $rFieldList = array_flip($fieldList);
         $defaultValue = $rFieldList[$sourceFormKey];
       }
@@ -53,7 +55,11 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
       $scm = array();
       foreach($sourceTargetMap as $k => $val) {
         $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
-        $target = 'edit-submitted-' . str_replace('_', '-', implode('-', $targetParents));
+        $target = 'submitted';
+        foreach($targetParents as $targetParent) {
+          $target .= '[' . $targetParent . ']';
+        }
+        //$target = 'edit-submitted-' . str_replace('_', '-', implode('-', $targetParents));
         $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
         $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
         $scm[$sourceID][$val['cid']] = $target;
@@ -72,6 +78,13 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
   }
 }
 
+/**
+ * Addition submit function for component edit form
+ * to handle submission with source field value
+ * 
+ * @param object $form
+ * @param object $form_state
+ */
 function webform_copy_value_submit($form, &$form_state) {
   $sourceFieldId = $form_state['values']['copy_value_of'];
   if($sourceFieldId != 0) {
@@ -82,6 +95,12 @@ function webform_copy_value_submit($form, &$form_state) {
   }
 }
 
+/**
+ * source target map array for Javascript
+ * 
+ * @param array $components
+ * @return array $sourceTargetMap
+ */
 function get_source_target_field_map($components) {
   $sourceTargetMap = array();
   $count = 0;
@@ -89,39 +108,76 @@ function get_source_target_field_map($components) {
     if(strpos($component['value'], 'webform_copy_value') !== FALSE) {
       $sourceTargetMap[$count]['cid'] = $component['cid'];
       $sourceTargetMap[$count]['target'] = $component['form_key'];
-    
-      $sourceField = preg_match('/\[webform_copy_value\:(.*?)\]/', $component['value'], $match);
-      $sourceFormKey = $match[1];
-      $sourceTargetMap[$count]['source'] = $match[1];
-      $sourceFieldCid = get_component_id_by_name($components, $sourceFormKey);
+
+      $sourceFormKey = get_source_form_key($component['value']);
+
+      $sourceTargetMap[$count]['source'] = $sourceFormKey;
+      $sourceFieldCid = get_component_by_name($components, $sourceFormKey)['cid'];
       $sourceTargetMap[$count]['sourceCid'] = $sourceFieldCid;
     
       $count++;
     }
   }
-
   return $sourceTargetMap;
-  
 }
 
+/**
+ * get form key by default value
+ * 
+ * @param string $value
+ * @return string
+ */
+function get_source_form_key ($value) {
+  preg_match('/\[webform_copy_value\:(.*?)\]/', $value, $match);
+  return $match[1];
+}
+
+/**
+ * field list by type
+ * 
+ * @param array $components
+ * @param string $type
+ * @return array
+ */
 function get_webform_fields_by_type($components, $type) {
   $fields = array();
-
   foreach ($components as $component) {
     if($component['type'] == $type) {
       $cid  = $component['cid'];
       $fields[$cid] = $component['form_key'];
     }
   }
-
   return $fields;
 }
 
-
-function get_component_id_by_name($components, $formKey) {
+/**
+ * Handy function to fetch component info by it's name
+ * 
+ * @param array $components
+ * @param string $formKey
+ * @return array
+ */
+function get_component_by_name($components, $formKey) {
   foreach ($components as $component) {
     if($component['form_key'] == $formKey) {
-      return $component['cid'];
+      return $component;
+    }
+  }
+  return false;
+}
+
+/**
+ * Implements hook_webform_submission_presave().
+ * 
+ * Handle hidden fields
+ */
+function webform_copy_value_webform_submission_presave($node, &$submission) {
+  $components = $node->webform['components'];
+  foreach($components as $component) {
+    if($component['type'] == 'hidden' && (strpos($component['value'], 'webform_copy_value:') !== FALSE)) {
+      $sourceFormKey = get_source_form_key($component['value']);
+      $sourceFieldId = get_component_by_name($components, $sourceFormKey)['cid'];
+      $submission->data[$component['cid']][0] = $submission->data[$sourceFieldId][0];
     }
   }
 }
