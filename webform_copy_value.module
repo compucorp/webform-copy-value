@@ -4,7 +4,7 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
   if($form_id == "webform_component_edit_form") {
     $type = $form['type']['#value'];
     $components = $form['#node']->webform['components'];
-    if(in_array($type, array('textfield','select', 'hidden'))){
+    if(in_array($type, array('textfield','select', 'hidden', 'textarea'))){
       $node = $form['#node'];
       $nid = $node->nid;
       if($type == 'hidden') {
@@ -181,4 +181,3 @@ function webform_copy_value_webform_submission_presave($node, &$submission) {
     }
   }
 }
-
