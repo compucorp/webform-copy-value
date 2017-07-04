@@ -6,6 +6,10 @@ jQuery(document).ready(function ($) {
     copyValueToTarget(this, sourceTargetMap);
   });
 
+   $("input[type=file]").change(function() {
+    copyValueToTargetFileField(this, sourceTargetMap);
+  });
+
   $("textarea").focusout(function() {
     copyValueToTarget(this, sourceTargetMap);
   });
@@ -17,17 +21,21 @@ jQuery(document).ready(function ($) {
   $("input[type=checkbox]").change(function() {
     copyValueToTargetCheckbox(this, sourceTargetMap);
   });
-  
-  $("input[type=radio]").change(function() {
+
+  $("input[type=radio]").click(function() {
     copyValueToTargetRadio(this, sourceTargetMap);
   });
 
   function copyValueToTarget (fieldObj, sourceTargetMap) {
     var fieldID = fieldObj.id;
     var stArray = sourceTargetMap[fieldID];
-
+    var sourceValue = $(fieldObj).val()
     $.each(stArray, function (key, value) {
-      $('[name="' + value + '"]').val($(fieldObj).val());
+      if($.isArray(sourceValue)){
+        $('[name="' + value + '[]"]').val(sourceValue);
+      } else {
+        $('[name="' + value + '"]').val(sourceValue);
+      }
     });
   }
 
@@ -43,22 +51,20 @@ jQuery(document).ready(function ($) {
       var stArray = sourceTargetMap[parentDivID];
       $.each(stArray, function (key, value) {
         value += '[' + checkboxVal + ']';
-        $('[name="' + value + '"]').attr('checked', isChecked);
+        $('[name="' + value + '"]').prop('checked', isChecked);
       });
     }
   }
 
   function copyValueToTargetRadio (fieldObj, sourceTargetMap) {
     var fieldID = fieldObj.id;
-
     fieldObj = $(fieldObj);
     var radioVal = fieldObj.val();
-    var parentDivID = fieldID.replace('-' + radioVal, '');
-
+    var parentDivID = fieldID.replace(new RegExp('-' + radioVal + '$'), '');
     if(sourceTargetMap[parentDivID]) {
       var stArray = sourceTargetMap[parentDivID];
       $.each(stArray, function (key, value) {
-        $('[name="' + value + '"]' + '[value=' + radioVal + ']').attr('checked', 'checked');
+        $('input:radio[name="' + value + '"]' + '[value=' + radioVal + ']').prop('checked', 'checked');
       });
     }
   }
