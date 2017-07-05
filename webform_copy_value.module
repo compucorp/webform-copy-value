@@ -4,23 +4,25 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
   if($form_id == "webform_component_edit_form") {
     $type = $form['type']['#value'];
     $components = $form['#node']->webform['components'];
-    if(in_array($type, array('textfield','select', 'hidden', 'textarea'))){
+    if(in_array($type, array('textfield','select', 'hidden', 'textarea', 'number', 'date', 'file', 'time'))){
       $node = $form['#node'];
       $nid = $node->nid;
+      $cid = !empty($form['cid']['#value']) ? $form['cid']['#value'] : "";
       if($type == 'hidden') {
         $type = "textfield";
       }
+
       $fieldList = get_webform_fields_by_type($components, $type);
-      if(strpos($form['value']['#default_value'], 'webform_copy_value:') !== FALSE) {
-        $sourceFormKey = get_source_form_key($form['value']);
-        $rFieldList = array_flip($fieldList);
-        $defaultValue = $rFieldList[$sourceFormKey];
+      if(!empty($cid)) {
+        $mappings = get_mappings($nid, $cid);
+        if(!empty($mappings)) {
+          $defaultValue = $mappings[0]->source;
+        }
       }
 
-      unset($fieldList[$form['cid']['#value']]);
+      unset($fieldList[$form['form_key']['#default_value']]);
       $fieldList[0] = '--None--';
 
-      $form['value']['#disabled'] =  TRUE;
       $form['copy_value_of'] = array (
         '#type' => 'select',
         '#title' => 'Copy value of field',
@@ -32,9 +34,9 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
     }
   }
 
-  if(strpos($form_id, 'webform_client_form') !== FALSE) {  
+  if(strpos($form_id, 'webform_client_form') !== FALSE) {
     $components = $form['#node']->webform['components'];
-    $sourceTargetMap = get_source_target_field_map($components);
+    $sourceTargetMap = get_source_target_field_map($components, $form['#node']->nid);
 
     // handle fields with pagebreaks
     if(isset($form_state['values'])) {
@@ -55,14 +57,40 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
       $scm = array();
       foreach($sourceTargetMap as $k => $val) {
         $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
+        $type = get_component_by_name($form['#node']->webform['components'], $val['target'])['type'];
+
         $target = 'submitted';
         foreach($targetParents as $targetParent) {
           $target .= '[' . $targetParent . ']';
         }
-        //$target = 'edit-submitted-' . str_replace('_', '-', implode('-', $targetParents));
+
         $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
-        $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
-        $scm[$sourceID][$val['cid']] = $target;
+
+        // processing needed for date and time
+        if($type == 'date') {
+          $dateFields = array('month', 'day', 'year');
+          foreach($dateFields as $dateField) {
+            $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents)) . "-$dateField";
+            $scm[$sourceID][$val['cid']] = $target . '[' . $dateField . ']';
+          }
+        } 
+        else if($type == 'time'){
+          $timeFields = array ('hour', 'minute', 'second', 'am', 'pm');
+          $sourceBaseID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
+          foreach($timeFields as $timeField) {
+            if(in_array($timeField, array('am', 'pm'))){
+              $sourceID = $sourceBaseID . "-ampm";
+              $scm[$sourceID][$val['cid']] = $target . '[ampm]';
+            } else {
+              $sourceID = $sourceBaseID . "-$timeField";
+              $scm[$sourceID][$val['cid']] = $target . '[' . $timeField . ']';
+            }
+          }
+        }
+        else {
+          $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
+          $scm[$sourceID][$val['cid']] = $target;
+        }
       }
 
       // Attach necessary JavaScript.
@@ -87,9 +115,22 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
  */
 function webform_copy_value_submit($form, &$form_state) {
   $sourceFieldId = $form_state['values']['copy_value_of'];
-  if($sourceFieldId != 0) {
-    $sourceFormKey = $form['#node']->webform['components'][$sourceFieldId]['form_key'];
-    $form_state['values']['value'] = '[webform_copy_value:' . $sourceFormKey . ']';
+  $cid = $form_state['values']['cid'];
+  $nid = $form_state['values']['nid'];
+  if($cid == NULL){
+    $dbo = db_query("select max(`cid`) + 1  as newCid from webform_component where nid = {$nid}");
+    $cid = $dbo->fetch()->newCid;
+  }
+
+  if(!empty($sourceFieldId)) {
+    db_insert('webform_copy_value')
+    ->fields(array(
+      'cid' => $cid,
+      'nid' => $nid,
+      'source' => $form_state['values']['copy_value_of'],
+      'target' => $form_state['values']['form_key'],
+    ))
+    ->execute();
   } else if($sourceFieldId == 0) {
     $form_state['values']['value'] = "";
   }
@@ -101,24 +142,29 @@ function webform_copy_value_submit($form, &$form_state) {
  * @param array $components
  * @return array $sourceTargetMap
  */
-function get_source_target_field_map($components) {
+function get_source_target_field_map($components, $nid) {
   $sourceTargetMap = array();
   $count = 0;
-  foreach ($components as $component) {
-    if(strpos($component['value'], 'webform_copy_value') !== FALSE) {
-      $sourceTargetMap[$count]['cid'] = $component['cid'];
-      $sourceTargetMap[$count]['target'] = $component['form_key'];
-
-      $sourceFormKey = get_source_form_key($component['value']);
-
-      $sourceTargetMap[$count]['source'] = $sourceFormKey;
-      $sourceFieldCid = get_component_by_name($components, $sourceFormKey)['cid'];
-      $sourceTargetMap[$count]['sourceCid'] = $sourceFieldCid;
+  $mappings = get_mappings($nid);
+  foreach($mappings as $mapping) {
+    $sourceTargetMap[$count]['cid'] = $mapping->cid;
+    $sourceTargetMap[$count]['target'] = $mapping->target;
+    $sourceTargetMap[$count]['source'] = $mapping->source;
+    $sourceFieldCid = get_component_by_name($components, $mapping->source)['cid'];
+    $sourceTargetMap[$count]['sourceCid'] = $sourceFieldCid;
     
-      $count++;
-    }
+    $count ++;
   }
   return $sourceTargetMap;
+}
+
+function get_mappings($nid, $cid = 0) {
+  $query = "SELECT * from webform_copy_value where nid = {$nid}";
+  if(!empty($cid)) {
+    $query .= " and cid = {$cid}";
+  }
+  $mappings = db_query($query);
+  return $mappings->fetchAll();
 }
 
 /**
@@ -143,8 +189,8 @@ function get_webform_fields_by_type($components, $type) {
   $fields = array();
   foreach ($components as $component) {
     if($component['type'] == $type) {
-      $cid  = $component['cid'];
-      $fields[$cid] = $component['form_key'];
+      $cid  = $component['form_key'];
+      $fields[$cid] = $component['name'];
     }
   }
   return $fields;
@@ -173,11 +219,12 @@ function get_component_by_name($components, $formKey) {
  */
 function webform_copy_value_webform_submission_presave($node, &$submission) {
   $components = $node->webform['components'];
-  foreach($components as $component) {
-    if($component['type'] == 'hidden' && (strpos($component['value'], 'webform_copy_value:') !== FALSE)) {
-      $sourceFormKey = get_source_form_key($component['value']);
+  $mappings = get_mappings($node->nid);
+  foreach($mappings as $mapping) {
+    if($components[$mapping->cid]['type'] == 'hidden') {
+      $sourceFormKey = $mapping->source;
       $sourceFieldId = get_component_by_name($components, $sourceFormKey)['cid'];
-      $submission->data[$component['cid']][0] = $submission->data[$sourceFieldId][0];
+      $submission->data[$mapping->cid][0] = $submission->data[$sourceFieldId][0];
     }
   }
 }
