@@ -22,7 +22,7 @@ jQuery(document).ready(function ($) {
     copyValueToTargetCheckbox(this, sourceTargetMap);
   });
 
-  $("input[type=radio]").click(function() {
+  $("input[type=radio]").change(function() {
     copyValueToTargetRadio(this, sourceTargetMap);
   });
 
