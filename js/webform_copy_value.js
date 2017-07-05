@@ -30,13 +30,15 @@ jQuery(document).ready(function ($) {
     var fieldID = fieldObj.id;
     var stArray = sourceTargetMap[fieldID];
     var sourceValue = $(fieldObj).val()
-    $.each(stArray, function (key, value) {
-      if($.isArray(sourceValue)){
-        $('[name="' + value + '[]"]').val(sourceValue);
-      } else {
-        $('[name="' + value + '"]').val(sourceValue);
-      }
-    });
+    if(stArray) {
+      $.each(stArray, function (key, value) {
+        if($.isArray(sourceValue)){
+          $('[name="' + value + '[]"]').val(sourceValue).trigger('change');
+        } else {
+          $('[name="' + value + '"]').val(sourceValue).trigger('change');
+        }
+      });
+    }
   }
 
   function copyValueToTargetCheckbox (fieldObj, sourceTargetMap) {
