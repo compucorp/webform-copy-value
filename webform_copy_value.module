@@ -121,18 +121,23 @@ function webform_copy_value_submit($form, &$form_state) {
     $dbo = db_query("select max(`cid`) + 1  as newCid from webform_component where nid = {$nid}");
     $cid = $dbo->fetch()->newCid;
   }
-
+  $recordExists = db_query("SELECT id from webform_copy_value where cid = {$cid} AND nid = {$nid}");
+  $mapId = $recordExists->fetchField();
   if(!empty($sourceFieldId)) {
-    db_insert('webform_copy_value')
-    ->fields(array(
-      'cid' => $cid,
-      'nid' => $nid,
-      'source' => $form_state['values']['copy_value_of'],
-      'target' => $form_state['values']['form_key'],
-    ))
-    ->execute();
+    if(!$mapId) {
+      db_insert('webform_copy_value')
+      ->fields(array(
+        'cid' => $cid,
+        'nid' => $nid,
+        'source' => $form_state['values']['copy_value_of'],
+        'target' => $form_state['values']['form_key'],
+      ))
+      ->execute();
+    } else {
+      db_query("UPDATE webform_copy_value set `source` = '{$form_state['values']['copy_value_of']}' where id = {$mapId}");
+    }
   } else if($sourceFieldId == 0) {
-    $form_state['values']['value'] = "";
+    db_query("DELETE from webform_copy_value where id = {$mapId}");
   }
 }
 
