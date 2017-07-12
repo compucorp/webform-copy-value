@@ -54,6 +54,7 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
 
     // Prepare sourceTargetMap variable for javascript
     if(!empty($sourceTargetMap)) {
+      array_unshift($form['#validate'], 'webform_copy_value_front_validate');
       $scm = array();
       foreach($sourceTargetMap as $k => $val) {
         $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
@@ -137,7 +138,30 @@ function webform_copy_value_submit($form, &$form_state) {
       db_query("UPDATE webform_copy_value set `source` = '{$form_state['values']['copy_value_of']}' where id = {$mapId}");
     }
   } else if($sourceFieldId == 0) {
-    db_query("DELETE from webform_copy_value where id = {$mapId}");
+    //db_query("DELETE from webform_copy_value where id = {$mapId}");
+  }
+}
+
+/**
+ * Hidden fields copy to civicrm destination field
+ */
+function webform_copy_value_front_validate($form, &$form_state) {
+  $components = $form['#node']->webform['components'];
+  $sourceTargetMap = get_source_target_field_map($components, $form['#node']->nid);
+  foreach($sourceTargetMap as $k => $val) {
+    if($components[$val['cid']]['type'] == 'hidden') {
+      $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
+      $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
+      if(count($targetParents) > 1 && count($sourceParents) > 1) {
+        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+      } else if(count($targetParents) > 1 && count($sourceParents) == 0) {
+        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = $form_state['values']['submitted'][$sourceParents[0]];
+      } else if(count($targetParents) == 0 && count($sourceParents) > 1) {
+        $form_state['values']['submitted'][$targetParents[0]] = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+      } else {
+        $form_state['values']['submitted'][$targetParents[0]] = $form_state['values']['submitted'][$sourceParents[0]];
+      }
+    }
   }
 }
 
