@@ -258,11 +258,27 @@ function get_component_by_name($components, $formKey) {
 function webform_copy_value_webform_submission_presave($node, &$submission) {
   $components = $node->webform['components'];
   $mappings = get_mappings($node->nid);
+
   foreach($mappings as $mapping) {
     if($components[$mapping->cid]['type'] == 'hidden') {
       $sourceFormKey = $mapping->source;
       $sourceFieldId = get_component_by_name($components, $sourceFormKey)['cid'];
-      $submission->data[$mapping->cid][0] = $submission->data[$sourceFieldId][0];
+      if($components[$sourceFieldId]['type'] == 'select') {
+        $options = wf_crm_field_options($components[$mapping->cid], 'component_edit', wf_crm_aval($node, 'webform_civicrm:data'));
+        if(!empty($options)) {
+         $submissionString = "";
+         foreach($submission->data[$mapping->cid] as $optionKey) {
+           if($optionKey != 0) {
+             $submissionString .=  $options[$optionKey] . ", ";
+           }
+         }
+         $submission->data[$mapping->cid] = array();
+         $submission->data[$mapping->cid][0] = rtrim($submissionString, ', ');
+        }
+      } 
+      else {
+        $submission->data[$mapping->cid] = $submission->data[$sourceFieldId];
+      }
     }
   }
 }
