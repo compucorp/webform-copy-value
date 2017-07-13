@@ -8,11 +8,14 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
       $node = $form['#node'];
       $nid = $node->nid;
       $cid = !empty($form['cid']['#value']) ? $form['cid']['#value'] : "";
-      if($type == 'hidden') {
-        $type = "textfield";
-      }
 
-      $fieldList = get_webform_fields_by_type($components, $type);
+      if($type == 'hidden') {
+        $fieldList = get_webform_fields($components);
+      }
+      else {
+        $fieldList = get_webform_fields($components, $type);
+      }
+      
       if(!empty($cid)) {
         $mappings = get_mappings($nid, $cid);
         if(!empty($mappings)) {
@@ -208,16 +211,22 @@ function get_source_form_key ($value) {
 }
 
 /**
- * field list by type
+ * field list
  * 
  * @param array $components
  * @param string $type
  * @return array
  */
-function get_webform_fields_by_type($components, $type) {
+function get_webform_fields($components, $type = NULL) {
   $fields = array();
   foreach ($components as $component) {
-    if($component['type'] == $type) {
+    if(!empty($type)) {
+      if($component['type'] == $type) {
+        $cid  = $component['form_key'];
+        $fields[$cid] = $component['name'];
+      }
+    } 
+    else {
       $cid  = $component['form_key'];
       $fields[$cid] = $component['name'];
     }
