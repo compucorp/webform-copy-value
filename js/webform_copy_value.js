@@ -47,7 +47,7 @@ jQuery(document).ready(function ($) {
     fieldObj = $(fieldObj);
     var isChecked = fieldObj.is(':checked');
     var checkboxVal = fieldObj.val();
-    var parentDivID = fieldID.replace('-' + checkboxVal, '');
+    var parentDivID = fieldID.replace(new RegExp('-' + checkboxVal + '$'), '');
 
     if(sourceTargetMap[parentDivID]) {
       var stArray = sourceTargetMap[parentDivID];
