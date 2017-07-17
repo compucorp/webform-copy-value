@@ -156,13 +156,17 @@ function webform_copy_value_front_validate($form, &$form_state) {
       $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
       $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
       if(count($targetParents) > 1 && count($sourceParents) > 1) {
-        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+        $values = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = remove_empty_indexes($values);;
       } else if(count($targetParents) > 1 && count($sourceParents) == 0) {
-        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = $form_state['values']['submitted'][$sourceParents[0]];
+        $values = $form_state['values']['submitted'][$sourceParents[0]];
+        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = remove_empty_indexes($values);;
       } else if(count($targetParents) == 0 && count($sourceParents) > 1) {
-        $form_state['values']['submitted'][$targetParents[0]] = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+        $values = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+        $form_state['values']['submitted'][$targetParents[0]] = remove_empty_indexes($values);;
       } else {
-        $form_state['values']['submitted'][$targetParents[0]] = $form_state['values']['submitted'][$sourceParents[0]];
+        $values = $form_state['values']['submitted'][$sourceParents[0]];
+        $form_state['values']['submitted'][$targetParents[0]] = remove_empty_indexes($values);;
       }
     }
   }
@@ -281,4 +285,21 @@ function webform_copy_value_webform_submission_presave($node, &$submission) {
       }
     }
   }
+}
+
+/**
+ * Remove empty indexes from hidden fields
+ * 
+ * @param array $values
+ * @return array
+ */
+function remove_empty_indexes($values) {
+  if(count($values) > 1) {
+    foreach($values as $key => $value) {
+      if(empty($value)) {
+        unset($values[$key]);
+      }
+    }
+  }
+  return $values;
 }
