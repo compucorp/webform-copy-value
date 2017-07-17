@@ -140,8 +140,8 @@ function webform_copy_value_submit($form, &$form_state) {
     } else {
       db_query("UPDATE webform_copy_value set `source` = '{$form_state['values']['copy_value_of']}' where id = {$mapId}");
     }
-  } else if($sourceFieldId == 0) {
-    //db_query("DELETE from webform_copy_value where id = {$mapId}");
+  } else if($sourceFieldId == 0 && !empty($mapId)) {
+    db_query("DELETE from webform_copy_value where id = {$mapId}");
   }
 }
 
