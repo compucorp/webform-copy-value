@@ -124,6 +124,9 @@ function webform_copy_value_submit($form, &$form_state) {
   if($cid == NULL){
     $dbo = db_query("select max(`cid`) + 1  as newCid from webform_component where nid = {$nid}");
     $cid = $dbo->fetch()->newCid;
+    if(empty($cid)) {
+      $cid = 1;
+    }
   }
   $recordExists = db_query("SELECT id from webform_copy_value where cid = {$cid} AND nid = {$nid}");
   $mapId = $recordExists->fetchField();
