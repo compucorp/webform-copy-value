@@ -160,15 +160,19 @@ function webform_copy_value_front_validate($form, &$form_state) {
       $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
       if(count($targetParents) > 1 && count($sourceParents) > 1) {
         $values = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+        $values = fix_date_time_for_hidden_fields($values);
         $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = remove_empty_indexes($values);;
       } else if(count($targetParents) > 1 && count($sourceParents) == 0) {
         $values = $form_state['values']['submitted'][$sourceParents[0]];
+        $values = fix_date_time_for_hidden_fields($values);
         $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = remove_empty_indexes($values);;
       } else if(count($targetParents) == 0 && count($sourceParents) > 1) {
         $values = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
+        $values = fix_date_time_for_hidden_fields($values);
         $form_state['values']['submitted'][$targetParents[0]] = remove_empty_indexes($values);;
       } else {
         $values = $form_state['values']['submitted'][$sourceParents[0]];
+        $values = fix_date_time_for_hidden_fields($values);
         $form_state['values']['submitted'][$targetParents[0]] = remove_empty_indexes($values);;
       }
     }
@@ -303,6 +307,19 @@ function remove_empty_indexes($values) {
         unset($values[$key]);
       }
     }
+  }
+  return $values;
+}
+
+/**
+ * Fix date_time for hidden fields
+ *
+ * @param array $values
+ * @return string
+ */
+function fix_date_time_for_hidden_fields($values) {
+  if(isset($values['month'])) {
+    return $values['year'].sprintf("%02d", $values['month']).sprintf("%02d", $values['day']);
   }
   return $values;
 }
