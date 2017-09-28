@@ -158,23 +158,8 @@ function webform_copy_value_front_validate($form, &$form_state) {
     if($components[$val['cid']]['type'] == 'hidden') {
       $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
       $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
-      if(count($targetParents) > 1 && count($sourceParents) > 1) {
-        $values = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
-        $values = fix_date_time_for_hidden_fields($values);
-        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = remove_empty_indexes($values);;
-      } else if(count($targetParents) > 1 && count($sourceParents) == 0) {
-        $values = $form_state['values']['submitted'][$sourceParents[0]];
-        $values = fix_date_time_for_hidden_fields($values);
-        $form_state['values']['submitted'][$targetParents[0]][$targetParents[1]] = remove_empty_indexes($values);;
-      } else if(count($targetParents) == 0 && count($sourceParents) > 1) {
-        $values = $form_state['values']['submitted'][$sourceParents[0]][$sourceParents[1]];
-        $values = fix_date_time_for_hidden_fields($values);
-        $form_state['values']['submitted'][$targetParents[0]] = remove_empty_indexes($values);;
-      } else {
-        $values = $form_state['values']['submitted'][$sourceParents[0]];
-        $values = fix_date_time_for_hidden_fields($values);
-        $form_state['values']['submitted'][$targetParents[0]] = remove_empty_indexes($values);;
-      }
+      $values = get_source_value($form_state['values']['submitted'], $sourceParents);
+      set_target_value($form_state['values']['submitted'], $targetParents, remove_empty_indexes($values));
     }
   }
 }
@@ -322,4 +307,33 @@ function fix_date_time_for_hidden_fields($values) {
     return $values['year'].sprintf("%02d", $values['month']).sprintf("%02d", $values['day']);
   }
   return $values;
+}
+
+/**
+ * Function to copy value to target
+ *
+ * @param array $array
+ * @param array $path
+ * @param array|string $val
+ */
+function set_target_value(&$array,$path,$val) {
+  for($i=&$array; $key=array_shift($path); $i=&$i[$key]) {
+    if(!isset($i[$key])) $i[$key] = array();
+  }
+  $i = $val;
+}
+
+
+/**
+ * Function to get value from source
+ *
+ * @param array $array
+ * @param array $sourceParents
+ * @return array|string
+ */
+function get_source_value($array, $sourceParents) {
+  foreach($sourceParents as $sourceParent) {
+    $array = $array[$sourceParent];
+  }
+  return fix_date_time_for_hidden_fields($array);
 }
