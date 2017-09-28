@@ -60,52 +60,56 @@ function webform_copy_value_form_alter(&$form, &$form_state, $form_id) {
       array_unshift($form['#validate'], 'webform_copy_value_front_validate');
       $scm = array();
       foreach($sourceTargetMap as $k => $val) {
-        $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
-        $type = get_component_by_name($form['#node']->webform['components'], $val['target'])['type'];
+        if(isset($components[$val['cid']]) && isset($components[$val['sourceCid']])) {
+          $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
+          $type = get_component_by_name($form['#node']->webform['components'], $val['target'])['type'];
 
-        $target = 'submitted';
-        foreach($targetParents as $targetParent) {
-          $target .= '[' . $targetParent . ']';
-        }
-
-        $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
-
-        // processing needed for date and time
-        if($type == 'date') {
-          $dateFields = array('month', 'day', 'year');
-          foreach($dateFields as $dateField) {
-            $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents)) . "-$dateField";
-            $scm[$sourceID][$val['cid']] = $target . '[' . $dateField . ']';
+          $target = 'submitted';
+          foreach($targetParents as $targetParent) {
+            $target .= '[' . $targetParent . ']';
           }
-        } 
-        else if($type == 'time'){
-          $timeFields = array ('hour', 'minute', 'second', 'am', 'pm');
-          $sourceBaseID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
-          foreach($timeFields as $timeField) {
-            if(in_array($timeField, array('am', 'pm'))){
-              $sourceID = $sourceBaseID . "-ampm";
-              $scm[$sourceID][$val['cid']] = $target . '[ampm]';
-            } else {
-              $sourceID = $sourceBaseID . "-$timeField";
-              $scm[$sourceID][$val['cid']] = $target . '[' . $timeField . ']';
+
+          $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
+
+          // processing needed for date and time
+          if($type == 'date') {
+            $dateFields = array('month', 'day', 'year');
+            foreach($dateFields as $dateField) {
+              $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents)) . "-$dateField";
+              $scm[$sourceID][$val['cid']] = $target . '[' . $dateField . ']';
+            }
+          } 
+          else if($type == 'time'){
+            $timeFields = array ('hour', 'minute', 'second', 'am', 'pm');
+            $sourceBaseID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
+            foreach($timeFields as $timeField) {
+              if(in_array($timeField, array('am', 'pm'))){
+                $sourceID = $sourceBaseID . "-ampm";
+                $scm[$sourceID][$val['cid']] = $target . '[ampm]';
+              } else {
+                $sourceID = $sourceBaseID . "-$timeField";
+                $scm[$sourceID][$val['cid']] = $target . '[' . $timeField . ']';
+              }
             }
           }
-        }
-        else {
-          $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
-          $scm[$sourceID][$val['cid']] = $target;
+          else {
+            $sourceID = 'edit-submitted-' . str_replace('_', '-', implode('-', $sourceParents));
+            $scm[$sourceID][$val['cid']] = $target;
+          }
         }
       }
 
-      // Attach necessary JavaScript.
-      $form['#attached']['js'][] = drupal_get_path('module', 'webform_copy_value') . '/js/webform_copy_value.js';
-      $form['#attached']['js'][] = array (
-        // Pass PHP variables to Drupal.settings.
-        'data' => array(
-          'sourceTargetMap' => $scm,
-        ),
-        'type' => 'setting',
-      );
+      if(!empty($scm)) {
+        // Attach necessary JavaScript.
+        $form['#attached']['js'][] = drupal_get_path('module', 'webform_copy_value') . '/js/webform_copy_value.js';
+        $form['#attached']['js'][] = array (
+          // Pass PHP variables to Drupal.settings.
+          'data' => array(
+            'sourceTargetMap' => $scm,
+          ),
+          'type' => 'setting',
+        );
+      }
     }
   }
 }
@@ -155,7 +159,7 @@ function webform_copy_value_front_validate($form, &$form_state) {
   $components = $form['#node']->webform['components'];
   $sourceTargetMap = get_source_target_field_map($components, $form['#node']->nid);
   foreach($sourceTargetMap as $k => $val) {
-    if($components[$val['cid']]['type'] == 'hidden') {
+    if( isset($components[$val['cid']]) && $components[$val['cid']]['type'] == 'hidden') {
       $targetParents = webform_component_parent_keys($form['#node'], $components[$val['cid']]);
       $sourceParents = webform_component_parent_keys($form['#node'], $components[$val['sourceCid']]);
       $values = get_source_value($form_state['values']['submitted'], $sourceParents);
@@ -256,7 +260,7 @@ function webform_copy_value_webform_submission_presave($node, &$submission) {
   $mappings = get_mappings($node->nid);
 
   foreach($mappings as $mapping) {
-    if($components[$mapping->cid]['type'] == 'hidden') {
+    if(isset($components[$mapping->cid]) && $components[$mapping->cid]['type'] == 'hidden') {
       $sourceFormKey = $mapping->source;
       $sourceFieldId = get_component_by_name($components, $sourceFormKey)['cid'];
       if($components[$sourceFieldId]['type'] == 'select') {
@@ -336,4 +340,19 @@ function get_source_value($array, $sourceParents) {
     $array = $array[$sourceParent];
   }
   return fix_date_time_for_hidden_fields($array);
+}
+
+
+function webform_copy_value_webform_component_delete($component) {
+  $mapIds = array();
+  $cFormKey = $component['form_key'];
+  $nid = $component['nid'];
+  $records = db_query("SELECT id from webform_copy_value where (source = '{$cFormKey}' OR target = '{$cFormKey}') "
+  . "AND nid = {$nid}");
+  $mapIds = $records->fetchCol();
+  
+  if(!empty($mapIds)) {
+    $mapIds = implode(',', $mapIds);
+    db_query("DELETE from webform_copy_value where id IN ({$mapIds})");
+  }
 }
